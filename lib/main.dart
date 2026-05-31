@@ -277,6 +277,17 @@ class DatabaseHelper {
     return await db.insert('customers', customer.toMap());
   }
 
+  Future<int> updateCustomer(Customer customer) async {
+    final db = await database;
+
+    return await db.update(
+      'customers',
+      customer.toMap(),
+      where: 'id = ?',
+      whereArgs: [customer.id],
+    );
+  }
+
   Future<List<CustomerSummary>> getCustomerSummaries() async {
     final db = await database;
 
@@ -982,6 +993,10 @@ class CustomerDetailsScreen extends StatefulWidget {
 }
 
 class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
+  Customer? _currentCustomer;
+
+  Customer get currentCustomer => _currentCustomer ?? widget.customer;
+
   List<CreditItem> items = [];
   List<Payment> payments = [];
 
@@ -994,6 +1009,7 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
   @override
   void initState() {
     super.initState();
+    _currentCustomer = widget.customer;
     loadCustomerData();
   }
 
@@ -1004,7 +1020,7 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
       loading = true;
     });
 
-    final customerId = widget.customer.id!;
+    final customerId = currentCustomer.id!;
 
     final creditItems = await DatabaseHelper.instance.getCreditItemsForCustomer(
       customerId,
@@ -1030,6 +1046,112 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
       balance = currentBalance;
       loading = false;
     });
+  }
+
+  void openEditCustomerSheet(BuildContext pageContext) {
+    final nameController = TextEditingController(text: currentCustomer.name);
+    final phoneController = TextEditingController(text: currentCustomer.phone);
+    final locationController = TextEditingController(
+      text: currentCustomer.location,
+    );
+
+    showModalBottomSheet(
+      context: pageContext,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (sheetContext) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 20,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Center(
+                  child: SizedBox(width: 45, child: Divider(thickness: 4)),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Edit Customer Details',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Update the customer name, phone number, or location.',
+                  style: TextStyle(color: Colors.grey.shade600),
+                ),
+                const SizedBox(height: 20),
+                CustomTextField(
+                  controller: nameController,
+                  label: 'Customer name',
+                  icon: Icons.person_outline,
+                ),
+                const SizedBox(height: 14),
+                CustomTextField(
+                  controller: phoneController,
+                  label: 'Phone number',
+                  icon: Icons.phone_outlined,
+                  keyboardType: TextInputType.phone,
+                ),
+                const SizedBox(height: 14),
+                CustomTextField(
+                  controller: locationController,
+                  label: 'Location / Area',
+                  icon: Icons.location_on_outlined,
+                ),
+                const SizedBox(height: 22),
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: FilledButton.icon(
+                    onPressed: () {
+                      final name = nameController.text.trim();
+
+                      if (name.isEmpty) {
+                        showAppSnackBar('Customer name cannot be empty');
+                        return;
+                      }
+
+                      final updatedCustomer = Customer(
+                        id: currentCustomer.id,
+                        name: name,
+                        phone: phoneController.text.trim(),
+                        location: locationController.text.trim(),
+                        createdAt: currentCustomer.createdAt,
+                      );
+
+                      Navigator.of(sheetContext).pop();
+
+                      DatabaseHelper.instance
+                          .updateCustomer(updatedCustomer)
+                          .then((_) {
+                            if (!mounted) return;
+
+                            setState(() {
+                              _currentCustomer = updatedCustomer;
+                            });
+
+                            loadCustomerData();
+                            showAppSnackBar('Customer details updated');
+                          });
+                    },
+                    icon: const Icon(Icons.save_outlined),
+                    label: const Text('Save Changes'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Map<String, List<CreditItem>> groupItemsByDate() {
@@ -1147,7 +1269,7 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
                       }
 
                       final item = CreditItem(
-                        customerId: widget.customer.id!,
+                        customerId: currentCustomer.id!,
                         itemName: itemName,
                         quantity: quantity,
                         unitPrice: price,
@@ -1252,7 +1374,7 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
                       }
 
                       final payment = Payment(
-                        customerId: widget.customer.id!,
+                        customerId: currentCustomer.id!,
                         amount: amount,
                         note: noteController.text.trim(),
                         createdAt: DateTime.now().toIso8601String(),
@@ -1290,7 +1412,7 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
         return AlertDialog(
           title: const Text('Pay Full Balance?'),
           content: Text(
-            'This will record a full payment of ${formatMoney(balance)} for ${widget.customer.name}.',
+            'This will record a full payment of ${formatMoney(balance)} for ${currentCustomer.name}.',
           ),
           actions: [
             TextButton(
@@ -1311,7 +1433,7 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
     ).then((confirm) {
       if (confirm == true) {
         final payment = Payment(
-          customerId: widget.customer.id!,
+          customerId: currentCustomer.id!,
           amount: balance,
           note: 'Full balance payment',
           createdAt: DateTime.now().toIso8601String(),
@@ -1349,9 +1471,17 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.customer.name),
+        title: Text(currentCustomer.name),
         actions: [
           IconButton(
+            tooltip: 'Edit customer',
+            onPressed: () {
+              openEditCustomerSheet(context);
+            },
+            icon: const Icon(Icons.edit_outlined),
+          ),
+          IconButton(
+            tooltip: 'Add credit item',
             onPressed: () {
               openAddItemSheet(context);
             },
@@ -1472,8 +1602,8 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
                 radius: 29,
                 backgroundColor: const Color(0xFFE0F2F1),
                 child: Text(
-                  widget.customer.name.isNotEmpty
-                      ? widget.customer.name[0].toUpperCase()
+                  currentCustomer.name.isNotEmpty
+                      ? currentCustomer.name[0].toUpperCase()
                       : '?',
                   style: const TextStyle(
                     color: Color(0xFF0F766E),
@@ -1488,7 +1618,7 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      widget.customer.name,
+                      currentCustomer.name,
                       style: const TextStyle(
                         fontSize: 19,
                         fontWeight: FontWeight.w900,
@@ -1496,14 +1626,14 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      widget.customer.phone.isEmpty
+                      currentCustomer.phone.isEmpty
                           ? 'No phone number'
-                          : widget.customer.phone,
+                          : currentCustomer.phone,
                       style: TextStyle(color: Colors.grey.shade600),
                     ),
-                    if (widget.customer.location.isNotEmpty)
+                    if (currentCustomer.location.isNotEmpty)
                       Text(
-                        widget.customer.location,
+                        currentCustomer.location,
                         style: TextStyle(color: Colors.grey.shade600),
                       ),
                   ],
