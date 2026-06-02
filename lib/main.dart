@@ -7,6 +7,8 @@ import 'package:sqflite/sqflite.dart';
 final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
     GlobalKey<ScaffoldMessengerState>();
 
+final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
+
 void showAppSnackBar(String message) {
   rootScaffoldMessengerKey.currentState?.clearSnackBars();
   rootScaffoldMessengerKey.currentState?.showSnackBar(
@@ -42,6 +44,7 @@ class GroceryCreditBookApp extends StatelessWidget {
       title: 'Grocery Credit Book',
       debugShowCheckedModeBanner: false,
       scaffoldMessengerKey: rootScaffoldMessengerKey,
+      navigatorKey: rootNavigatorKey,
       theme: ThemeData(
         useMaterial3: true,
         textTheme: GoogleFonts.poppinsTextTheme(),
@@ -285,6 +288,16 @@ class DatabaseHelper {
       customer.toMap(),
       where: 'id = ?',
       whereArgs: [customer.id],
+    );
+  }
+
+  Future<int> deleteCustomer(int customerId) async {
+    final db = await database;
+
+    return await db.delete(
+      'customers',
+      where: 'id = ?',
+      whereArgs: [customerId],
     );
   }
 
@@ -1204,6 +1217,46 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
     return total;
   }
 
+  void confirmDeleteCustomer(BuildContext pageContext) {
+    showDialog<bool>(
+      context: pageContext,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Delete Customer?'),
+          content: Text(
+            'This will permanently delete ${currentCustomer.name}, including all credit items and payment history. This action cannot be undone.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop(false);
+              },
+              child: const Text('Cancel'),
+            ),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () {
+                Navigator.of(dialogContext).pop(true);
+              },
+              icon: const Icon(Icons.delete_outline),
+              label: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    ).then((confirm) {
+      if (confirm == true) {
+        DatabaseHelper.instance.deleteCustomer(currentCustomer.id!).then((_) {
+          showAppSnackBar('Customer deleted successfully');
+          rootNavigatorKey.currentState?.pop(true);
+        });
+      }
+    });
+  }
+
   void openAddItemSheet(BuildContext pageContext) {
     final itemController = TextEditingController();
     final quantityController = TextEditingController(text: '1');
@@ -1746,6 +1799,22 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
               openAddItemSheet(context);
             },
             icon: const Icon(Icons.add_circle_outline),
+          ),
+          PopupMenuButton<String>(
+            tooltip: 'More options',
+            onSelected: (value) {
+              if (value == 'delete_customer') {
+                confirmDeleteCustomer(context);
+              }
+            },
+            itemBuilder: (context) {
+              return const [
+                PopupMenuItem(
+                  value: 'delete_customer',
+                  child: Text('Delete customer'),
+                ),
+              ];
+            },
           ),
         ],
       ),
