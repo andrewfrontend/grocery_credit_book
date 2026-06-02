@@ -349,6 +349,17 @@ class DatabaseHelper {
     return await db.insert('credit_items', item.toMap());
   }
 
+  Future<int> updateCreditItem(CreditItem item) async {
+    final db = await database;
+
+    return await db.update(
+      'credit_items',
+      item.toMap(),
+      where: 'id = ?',
+      whereArgs: [item.id],
+    );
+  }
+
   Future<List<CreditItem>> getCreditItemsForCustomer(int customerId) async {
     final db = await database;
 
@@ -375,6 +386,17 @@ class DatabaseHelper {
   Future<int> addPayment(Payment payment) async {
     final db = await database;
     return await db.insert('payments', payment.toMap());
+  }
+
+  Future<int> updatePayment(Payment payment) async {
+    final db = await database;
+
+    return await db.update(
+      'payments',
+      payment.toMap(),
+      where: 'id = ?',
+      whereArgs: [payment.id],
+    );
   }
 
   Future<List<Payment>> getPaymentsForCustomer(int customerId) async {
@@ -1295,6 +1317,128 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
     );
   }
 
+  void openEditItemSheet(BuildContext pageContext, CreditItem item) {
+    final itemController = TextEditingController(text: item.itemName);
+    final quantityController = TextEditingController(
+      text: item.quantity.toString(),
+    );
+    final priceController = TextEditingController(
+      text: item.unitPrice.toString(),
+    );
+
+    showModalBottomSheet(
+      context: pageContext,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (sheetContext) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 20,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Center(
+                  child: SizedBox(width: 45, child: Divider(thickness: 4)),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Edit Credit Item',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Correct the item name, quantity, or price.',
+                  style: TextStyle(color: Colors.grey.shade600),
+                ),
+                const SizedBox(height: 20),
+                CustomTextField(
+                  controller: itemController,
+                  label: 'Item name',
+                  icon: Icons.shopping_basket_outlined,
+                ),
+                const SizedBox(height: 14),
+                CustomTextField(
+                  controller: quantityController,
+                  label: 'Quantity',
+                  icon: Icons.numbers_outlined,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                CustomTextField(
+                  controller: priceController,
+                  label: 'Price per item',
+                  icon: Icons.payments_outlined,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                ),
+                const SizedBox(height: 22),
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: FilledButton.icon(
+                    onPressed: () {
+                      final itemName = itemController.text.trim();
+                      final quantity = double.tryParse(
+                        quantityController.text.trim(),
+                      );
+                      final price = double.tryParse(
+                        priceController.text.trim(),
+                      );
+
+                      if (itemName.isEmpty ||
+                          quantity == null ||
+                          price == null ||
+                          quantity <= 0 ||
+                          price <= 0) {
+                        showAppSnackBar(
+                          'Please enter item name, quantity and price correctly',
+                        );
+                        return;
+                      }
+
+                      final updatedItem = CreditItem(
+                        id: item.id,
+                        customerId: item.customerId,
+                        itemName: itemName,
+                        quantity: quantity,
+                        unitPrice: price,
+                        createdAt: item.createdAt,
+                      );
+
+                      Navigator.of(sheetContext).pop();
+
+                      DatabaseHelper.instance
+                          .updateCreditItem(updatedItem)
+                          .then((_) {
+                            if (!mounted) return;
+
+                            loadCustomerData();
+                            showAppSnackBar('Credit item updated successfully');
+                          });
+                    },
+                    icon: const Icon(Icons.save_outlined),
+                    label: const Text('Save Changes'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   void openAddPaymentSheet(BuildContext pageContext) {
     if (balance <= 0) {
       showAppSnackBar('This customer has no balance to pay');
@@ -1390,6 +1534,122 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
                     },
                     icon: const Icon(Icons.check_circle_outline),
                     label: const Text('Save Payment'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void openEditPaymentSheet(BuildContext pageContext, Payment payment) {
+    final amountController = TextEditingController(
+      text: payment.amount.toString(),
+    );
+    final noteController = TextEditingController(text: payment.note);
+
+    showModalBottomSheet(
+      context: pageContext,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (sheetContext) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: MediaQuery.of(sheetContext).viewInsets.bottom + 20,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Center(
+                  child: SizedBox(width: 45, child: Divider(thickness: 4)),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Edit Payment',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Correct the payment amount or note.',
+                  style: TextStyle(color: Colors.grey.shade600),
+                ),
+                const SizedBox(height: 20),
+                CustomTextField(
+                  controller: amountController,
+                  label: 'Amount paid',
+                  icon: Icons.money_outlined,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                CustomTextField(
+                  controller: noteController,
+                  label: 'Payment note e.g. Cash, Airtel Money',
+                  icon: Icons.notes_outlined,
+                ),
+                const SizedBox(height: 22),
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: FilledButton.icon(
+                    onPressed: () {
+                      final amount = double.tryParse(
+                        amountController.text.trim(),
+                      );
+
+                      if (amount == null || amount <= 0) {
+                        showAppSnackBar('Please enter a valid payment amount');
+                        return;
+                      }
+
+                      final otherPaymentsTotal = totalPaid - payment.amount;
+                      final maximumAllowed = totalCredit - otherPaymentsTotal;
+
+                      if (maximumAllowed <= 0) {
+                        showAppSnackBar(
+                          'This payment cannot be increased because the customer has no remaining credit balance',
+                        );
+                        return;
+                      }
+
+                      if (amount > maximumAllowed) {
+                        showAppSnackBar(
+                          'Payment cannot be greater than ${formatMoney(maximumAllowed)}',
+                        );
+                        return;
+                      }
+
+                      final updatedPayment = Payment(
+                        id: payment.id,
+                        customerId: payment.customerId,
+                        amount: amount,
+                        note: noteController.text.trim(),
+                        createdAt: payment.createdAt,
+                      );
+
+                      Navigator.of(sheetContext).pop();
+
+                      DatabaseHelper.instance
+                          .updatePayment(updatedPayment)
+                          .then((_) {
+                            if (!mounted) return;
+
+                            loadCustomerData();
+                            showAppSnackBar('Payment updated successfully');
+                          });
+                    },
+                    icon: const Icon(Icons.save_outlined),
+                    label: const Text('Save Changes'),
                   ),
                 ),
               ],
@@ -1554,6 +1814,7 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
                       final dailyTotal = calculateDailyTotal(dailyItems);
 
                       return buildDailySection(
+                        pageContext: context,
                         dateKey: dateKey,
                         dailyItems: dailyItems,
                         dailyTotal: dailyTotal,
@@ -1569,7 +1830,7 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
                     buildEmptyPayments()
                   else
                     ...payments.map((payment) {
-                      return buildPaymentTile(payment);
+                      return buildPaymentTile(context, payment);
                     }),
                   const SizedBox(height: 90),
                 ],
@@ -1767,6 +2028,7 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
   }
 
   Widget buildDailySection({
+    required BuildContext pageContext,
     required String dateKey,
     required List<CreditItem> dailyItems,
     required double dailyTotal,
@@ -1795,13 +2057,13 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
           ),
         ),
         children: dailyItems.map((item) {
-          return buildItemTile(item);
+          return buildItemTile(pageContext, item);
         }).toList(),
       ),
     );
   }
 
-  Widget buildItemTile(CreditItem item) {
+  Widget buildItemTile(BuildContext pageContext, CreditItem item) {
     return ListTile(
       leading: const CircleAvatar(
         backgroundColor: Color(0xFFFFF7ED),
@@ -1816,12 +2078,15 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
       ),
       trailing: PopupMenuButton<String>(
         onSelected: (value) {
-          if (value == 'delete') {
+          if (value == 'edit') {
+            openEditItemSheet(pageContext, item);
+          } else if (value == 'delete') {
             deleteSingleItem(item);
           }
         },
         itemBuilder: (context) {
           return const [
+            PopupMenuItem(value: 'edit', child: Text('Edit item')),
             PopupMenuItem(value: 'delete', child: Text('Delete item')),
           ];
         },
@@ -1846,7 +2111,7 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
     );
   }
 
-  Widget buildPaymentTile(Payment payment) {
+  Widget buildPaymentTile(BuildContext pageContext, Payment payment) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
@@ -1871,12 +2136,15 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
         ),
         trailing: PopupMenuButton<String>(
           onSelected: (value) {
-            if (value == 'delete') {
+            if (value == 'edit') {
+              openEditPaymentSheet(pageContext, payment);
+            } else if (value == 'delete') {
               deleteSinglePayment(payment);
             }
           },
           itemBuilder: (context) {
             return const [
+              PopupMenuItem(value: 'edit', child: Text('Edit payment')),
               PopupMenuItem(value: 'delete', child: Text('Delete payment')),
             ];
           },
