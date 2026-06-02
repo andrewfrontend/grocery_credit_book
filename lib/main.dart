@@ -1217,6 +1217,21 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
     return total;
   }
 
+  void openCustomerStatement(BuildContext pageContext) {
+    Navigator.of(pageContext).push(
+      MaterialPageRoute(
+        builder: (_) => CustomerStatementScreen(
+          customer: currentCustomer,
+          creditItems: items,
+          payments: payments,
+          totalCredit: totalCredit,
+          totalPaid: totalPaid,
+          balance: balance,
+        ),
+      ),
+    );
+  }
+
   void confirmDeleteCustomer(BuildContext pageContext) {
     showDialog<bool>(
       context: pageContext,
@@ -1869,6 +1884,18 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
                       label: const Text('Pay Full Balance'),
                     ),
                   ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        openCustomerStatement(context);
+                      },
+                      icon: const Icon(Icons.description_outlined),
+                      label: const Text('View Customer Statement'),
+                    ),
+                  ),
                   const SizedBox(height: 24),
                   const Text(
                     'Credit Records by Date',
@@ -2218,6 +2245,394 @@ class _CustomerDetailsScreenState extends State<CustomerDetailsScreen> {
             ];
           },
         ),
+      ),
+    );
+  }
+}
+
+/* =========================
+   CUSTOMER STATEMENT SCREEN
+========================= */
+
+class CustomerStatementScreen extends StatelessWidget {
+  final Customer customer;
+  final List<CreditItem> creditItems;
+  final List<Payment> payments;
+  final double totalCredit;
+  final double totalPaid;
+  final double balance;
+
+  const CustomerStatementScreen({
+    super.key,
+    required this.customer,
+    required this.creditItems,
+    required this.payments,
+    required this.totalCredit,
+    required this.totalPaid,
+    required this.balance,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final sortedCreditItems = [...creditItems]
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+    final sortedPayments = [...payments]
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Customer Statement')),
+      body: ListView(
+        padding: const EdgeInsets.all(18),
+        children: [
+          buildStatementHeader(),
+          const SizedBox(height: 18),
+          buildSummaryCard(),
+          const SizedBox(height: 24),
+          buildSectionTitle(
+            title: 'Credit Items',
+            subtitle: '${sortedCreditItems.length} item(s)',
+            icon: Icons.shopping_cart_outlined,
+          ),
+          const SizedBox(height: 12),
+          if (sortedCreditItems.isEmpty)
+            buildEmptyStatementCard(
+              icon: Icons.receipt_long_outlined,
+              title: 'No credit items',
+              message: 'This customer has no credit items recorded.',
+            )
+          else
+            ...sortedCreditItems.map(buildCreditStatementTile),
+          const SizedBox(height: 24),
+          buildSectionTitle(
+            title: 'Payment History',
+            subtitle: '${sortedPayments.length} payment(s)',
+            icon: Icons.payments_outlined,
+          ),
+          const SizedBox(height: 12),
+          if (sortedPayments.isEmpty)
+            buildEmptyStatementCard(
+              icon: Icons.money_off_outlined,
+              title: 'No payments',
+              message: 'This customer has not made any payments yet.',
+            )
+          else
+            ...sortedPayments.map(buildPaymentStatementTile),
+          const SizedBox(height: 90),
+        ],
+      ),
+    );
+  }
+
+  Widget buildStatementHeader() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0F766E), Color(0xFF115E59)],
+        ),
+        borderRadius: BorderRadius.circular(26),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(20),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 31,
+            backgroundColor: Colors.white.withAlpha(235),
+            child: Text(
+              customer.name.isNotEmpty ? customer.name[0].toUpperCase() : '?',
+              style: const TextStyle(
+                color: Color(0xFF0F766E),
+                fontWeight: FontWeight.w900,
+                fontSize: 24,
+              ),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  customer.name,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 21,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  customer.phone.isEmpty ? 'No phone number' : customer.phone,
+                  style: const TextStyle(color: Colors.white70),
+                ),
+                if (customer.location.isNotEmpty)
+                  Text(
+                    customer.location,
+                    style: const TextStyle(color: Colors.white70),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget buildSummaryCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(10),
+            blurRadius: 14,
+            offset: const Offset(0, 7),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: buildStatementMiniStat(
+                  title: 'Total Credit',
+                  value: formatMoney(totalCredit),
+                  icon: Icons.shopping_cart_outlined,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: buildStatementMiniStat(
+                  title: 'Total Paid',
+                  value: formatMoney(totalPaid),
+                  icon: Icons.check_circle_outline,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: balance > 0
+                  ? const Color(0xFFFFF1F2)
+                  : const Color(0xFFEFFDF5),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Current Balance',
+                  style: TextStyle(color: Colors.grey.shade700),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  formatMoney(balance),
+                  style: TextStyle(
+                    color: balance > 0
+                        ? Colors.red.shade700
+                        : Colors.green.shade700,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 28,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget buildStatementMiniStat({
+    required String title,
+    required String value,
+    required IconData icon,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF6F8FA),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: const Color(0xFF0F766E), size: 22),
+          const SizedBox(height: 8),
+          Text(
+            title,
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget buildSectionTitle({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+  }) {
+    return Row(
+      children: [
+        Icon(icon, color: const Color(0xFF0F766E)),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            title,
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+          ),
+        ),
+        Text(subtitle, style: TextStyle(color: Colors.grey.shade600)),
+      ],
+    );
+  }
+
+  Widget buildCreditStatementTile(CreditItem item) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        children: [
+          const CircleAvatar(
+            backgroundColor: Color(0xFFFFF7ED),
+            child: Icon(Icons.shopping_bag_outlined, color: Colors.orange),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.itemName,
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '${formatDate(item.createdAt)} • ${formatTime(item.createdAt)}',
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '${item.quantity} × ${formatMoney(item.unitPrice)}',
+                  style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            formatMoney(item.total),
+            style: TextStyle(
+              color: Colors.red.shade700,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget buildPaymentStatementTile(Payment payment) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            backgroundColor: Colors.green.shade50,
+            child: const Icon(Icons.check, color: Colors.green),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Payment received',
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  '${formatDate(payment.createdAt)} • ${formatTime(payment.createdAt)}',
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                ),
+                if (payment.note.isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    payment.note,
+                    style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          Text(
+            formatMoney(payment.amount),
+            style: const TextStyle(
+              color: Colors.green,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget buildEmptyStatementCard({
+    required IconData icon,
+    required String title,
+    required String message,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(26),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, size: 60, color: Colors.grey.shade400),
+          const SizedBox(height: 10),
+          Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey.shade600),
+          ),
+        ],
       ),
     );
   }
